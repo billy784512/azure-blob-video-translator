@@ -15,6 +15,7 @@ namespace App
     {
         private readonly BlobContainerClientFactory _blobContainerClientFactory;
         private readonly TranscriptionClient _transcriptionClient;
+        private readonly TranslationClient _translationClient;
         private readonly HttpClient _httpClient;
         private readonly AppConfig _appConfig;
         private readonly ILogger<Main> _logger;
@@ -22,12 +23,14 @@ namespace App
         public Main(
             BlobContainerClientFactory blobContainerClientFactory, 
             TranscriptionClient transcriptionClient, 
-            HttpClient httpClient, 
+            TranslationClient translationClient,
+            HttpClient httpClient,
             AppConfig appConfig, 
             ILogger<Main> logger)
         {
             _blobContainerClientFactory = blobContainerClientFactory;
             _transcriptionClient = transcriptionClient;
+            _translationClient = translationClient;
             _httpClient = httpClient;
             _appConfig = appConfig;
             _logger = logger;
@@ -36,6 +39,7 @@ namespace App
         [Function("VideoTranslation")]
         public async Task<IActionResult> Run([HttpTrigger(AuthorizationLevel.Function, "post")] HttpRequest req)
         {
+            string tempVttPath = "";
             try
             {
                 string reqBody = await new StreamReader(req.Body).ReadToEndAsync();
@@ -54,6 +58,7 @@ namespace App
                     return new NotFoundObjectResult($"Blob '{reqData.blobName}' not found.");
                 }
 
+                string mp4Url = blobClient.Uri.ToString(); // Used in translation phrase
 
                 // Read and transcribe the blob
                 string rawJSON;
@@ -69,27 +74,65 @@ namespace App
 
                 // Convert JSON to VTT
                 string vttName = Path.ChangeExtension(reqData.blobName, ".vtt");
-                var tempVttPath = Path.GetTempFileName();
+                tempVttPath = Path.GetTempFileName();
 
                 _logger.LogInformation($"Temporary VTT file created at: {tempVttPath}");
-                await JsonToVttConverter.ConvertJsonToVtt(rawJSON, tempVttPath);
+                await JsonToVttConverter.Convert(rawJSON, tempVttPath);
 
+
+                // Upload VTT to blob
                 containerClient = _blobContainerClientFactory.GetClient(_appConfig.BlobContainerName_Transcription);
                 blobClient = containerClient.GetBlobClient(vttName);
                 
                 using FileStream uploadFileStream = File.OpenRead(tempVttPath);
                 await blobClient.UploadAsync(uploadFileStream, overwrite: true);
 
-                return new OkObjectResult($"{vttName} is written to blob storage successfully. Container: ${_appConfig.BlobContainerName_Transcription}");
+
+                // Call Translation
+                string vttUrl = blobClient.Uri.ToString();
+                string videoUrl = await _translationClient.StartProcessAsync(reqData.sourceLang, reqData.targetLang, mp4Url,vttUrl, reqData.blobName);
+
+                string tempVideoPath = Path.Combine(Path.GetTempPath(), "temp.mp4");
+                try
+                {
+                    await DownloadFileAsync(videoUrl, tempVideoPath);
+                    containerClient = _blobContainerClientFactory.GetClient(_appConfig.BlobContainerName_Target);
+                    blobClient = containerClient.GetBlobClient(reqData.blobName);
+                    
+                    using FileStream uploadFileStream2 = File.OpenRead(tempVideoPath);
+                    await blobClient.UploadAsync(uploadFileStream2, overwrite: true);
+                }
+                finally
+                {
+                    if (File.Exists(tempVideoPath))
+                    {
+                        File.Delete(tempVideoPath);
+                    }
+                }
+
+                return new OkObjectResult($"{reqData.blobName} is translated successfully. Check container: ${_appConfig.BlobContainerName_Target}");
             }
             catch (Exception ex)
             {
                 _logger.LogError($"Error processing the request: {ex.Message}");
                 return new ObjectResult(new { error = ex.Message }) { StatusCode = StatusCodes.Status500InternalServerError };
             }
+            finally
+            {
+                File.Delete(tempVttPath);
+            }
         }
 
-        public class RequestData
+        private async Task DownloadFileAsync(string url, string outputPath)
+        {
+            var response = await _httpClient.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            await using FileStream fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            await response.Content.CopyToAsync(fileStream);
+        }
+
+        private class RequestData
         {   
             public string blobName { get; set; }
             public string sourceLang { get; set; }

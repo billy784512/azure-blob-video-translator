@@ -20,6 +20,7 @@ var host = new HostBuilder()
 
         services.AddSingleton<BlobContainerClientFactory>();
         services.AddSingleton<TranscriptionClient>();
+        services.AddTransient<TranslationClient>();
         services.AddHttpClient();
     })
     .Build();

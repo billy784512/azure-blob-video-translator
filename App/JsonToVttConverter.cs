@@ -7,7 +7,7 @@ namespace App
 {
     public class JsonToVttConverter
     {
-        public static async Task ConvertJsonToVtt(string jsonString, string vttPath)
+        public static async Task Convert(string jsonString, string vttPath)
         {
             var transcription = JsonSerializer.Deserialize<TranscriptionResult>(jsonString);
 
@@ -41,13 +41,13 @@ namespace App
         }
 
         // Define the JSON structure
-        public class TranscriptionResult
+        private class TranscriptionResult
         {
             [JsonPropertyName("phrases")]
             public Phrase[] Phrases { get; set; }
         }
 
-        public class Phrase
+        private class Phrase
         {
             [JsonPropertyName("offsetMilliseconds")]
             public int OffsetMilliseconds { get; set; }
