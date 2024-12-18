@@ -13,5 +13,6 @@ namespace App.Utils
         public string BlobContainerName_Source { get; set; }
         public string BlobContainerName_Target { get; set; }
         public string BlobContainerName_Transcription { get; set; }
+        public string BlobContainerName_Processing { get; set; }
     }
 }

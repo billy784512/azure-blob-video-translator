@@ -5,20 +5,20 @@ using Microsoft.Extensions.Logging;
 
 using App.Utils;
 
-namespace App
+namespace App.Services
 {
-    public class TranslationClient
+    public class VideoTranslationService
     {
         private readonly HttpClient _httpClient;
         private readonly AppConfig _appConfig;
-        private readonly ILogger<TranslationClient> _logger;
+        private readonly ILogger<VideoTranslationService> _logger;
 
         private readonly string baseUrl;
         private readonly string translationId;
         private string iterationId;
         private string operationId;
 
-        public TranslationClient(HttpClient httpClient, AppConfig appConfig, ILogger<TranslationClient> logger)
+        public VideoTranslationService(HttpClient httpClient, AppConfig appConfig, ILogger<VideoTranslationService> logger)
         {
             _httpClient = httpClient;
             _appConfig = appConfig;
@@ -31,7 +31,7 @@ namespace App
             translationId = Guid.NewGuid().ToString();
         }
 
-        public async Task<string> StartProcessAsync(string sourceLang, string targetLang, string mp4Url, string vttUrl, string mp4Name)
+        public async Task<string> StartProcessAsync(string sourceLang, string targetLang, string mp4Name, string mp4Url, string vttUrl = null)
         {
             await CreateTranslationAsync(sourceLang, targetLang, mp4Url, mp4Name);
             await Polling();
@@ -78,20 +78,35 @@ namespace App
             string urlTemplate = baseUrl + "/translations/{0}/iterations/{1}?api-version={2}";
             string url = String.Format(urlTemplate, translationId, iterationId, _appConfig.TRANSLATION_API_VERSION);
 
-            var rawContent = new 
-            {
-                input = new{
-                            webvttFile = new{
-                                Kind = "SourceLocaleSubtitle",
-                                url = vttUrl
-                            }
-                        }
-            };
+            HttpRequestMessage request;
 
-            var request = new HttpRequestMessage(HttpMethod.Put, url)
+            if (!string.IsNullOrEmpty(vttUrl))
             {
-                Content = new StringContent(JsonSerializer.Serialize(rawContent), Encoding.UTF8, "application/json")
-            };
+                var rawContent = new 
+                {
+                    input = new
+                    {
+                        webvttFile = new
+                        {
+                            Kind = "SourceLocaleSubtitle",
+                            url = vttUrl
+                        }
+                    }
+                };
+
+                request = new HttpRequestMessage(HttpMethod.Put, url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(rawContent), Encoding.UTF8, "application/json")
+                };
+            }
+            else
+            {
+                var emptyContent = new {};
+                request = new HttpRequestMessage(HttpMethod.Put, url)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(emptyContent), Encoding.UTF8, "application/json")
+                };
+            }
             request.Headers.Add("Operation-Id", operationId);
 
             var response = await _httpClient.SendAsync(request);

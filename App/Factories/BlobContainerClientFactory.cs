@@ -1,6 +1,7 @@
 using Azure.Storage.Blobs;
+using App.Utils;
 
-namespace App.Utils
+namespace App.Factories
 {
     public class BlobContainerClientFactory
     {
@@ -22,6 +23,10 @@ namespace App.Utils
                 {
                     _config.BlobContainerName_Transcription,
                     CreateBlobContainerClient(config.BlobContainerName_Transcription)
+                },
+                {
+                    _config.BlobContainerName_Processing,
+                    CreateBlobContainerClient(config.BlobContainerName_Processing)
                 }
             };
         }
