@@ -1,27 +1,28 @@
-using App.Services;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace App.Factories
 {
     public class VideoProcessingStrategyFactory
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly VideoProcessingService _videoService;
+        private readonly Dictionary<string, Func<BaseVideoProcessingStrategy>> _strategyFactories;
 
-        public VideoProcessingStrategyFactory(IServiceProvider serviceProvider, VideoProcessingService videoService){
-            _serviceProvider = serviceProvider;
-            _videoService = videoService;
+        public VideoProcessingStrategyFactory(IServiceProvider serviceProvider)
+        {
+            _strategyFactories = new Dictionary<string, Func<BaseVideoProcessingStrategy>>()
+            {
+                { "simple", () => serviceProvider.GetRequiredService<SimpleVideoProcessingStrategy>() }
+                //{ "advanced", () => serviceProvider.GetRequiredService<AdvancedVideoProcessingStrategy>() }
+            };
         }
 
         public BaseVideoProcessingStrategy GetStrategy(string mode)
         {
-            return mode.ToLower() switch
+            if (_strategyFactories.TryGetValue(mode, out var factory))
             {
-                "simple" => _serviceProvider.GetRequiredService<SimpleVideoProcessingStrategy>(),
-                // "advanced" => new AdvancedVideoProcessingStrategy(_videoService)
-                // "complex" => new ComplexVideoProcessingStrategy(_videoService)
-                _ => throw new ArgumentException($"Unknown mode: {mode}")
-            };
+                return factory();
+            }
+
+            throw new ArgumentException($"Unknown mode: {mode}");
         }
     }
 }

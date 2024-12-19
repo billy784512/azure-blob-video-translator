@@ -13,20 +13,24 @@ var host = new HostBuilder()
         config.AddEnvironmentVariables();
     })
     .ConfigureServices((context, services) => {
-        var config = context.Configuration.Get<AppConfig>() ?? throw new InvalidOperationException("AppConfig could not be loaded");
-        services.AddSingleton(config);
-
         services.AddApplicationInsightsTelemetryWorkerService();
         services.ConfigureFunctionsApplicationInsights();
-
         services.AddHttpClient();
 
-        services.AddSingleton<VideoProcessingStrategyFactory>();
+        var config = context.Configuration.Get<AppConfig>() ?? throw new InvalidOperationException("AppConfig could not be loaded");
+        var containerNames = Environment.GetEnvironmentVariable("BLOB_CONTAINER_NAMES")
+            ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            ?? throw new InvalidOperationException("BLOB_CONTAINER_NAMES is not set in environment variables.");
+        config.ContainerNames = containerNames;
+
+        services.AddSingleton(config);
+
         services.AddSingleton<BlobContainerClientFactory>();
 
-        services.AddScoped<SimpleVideoProcessingStrategy>();
+        services.AddTransient<SimpleVideoProcessingStrategy>();
+        services.AddTransient<VideoProcessingStrategyFactory>();
 
-        services.AddSingleton<VideoProcessingService>();
+        services.AddTransient<VideoProcessingService>();
         services.AddTransient<VideoTranslationService>();
 
         // services.AddSingleton<TranscriptionClient>();

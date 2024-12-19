@@ -1,34 +1,24 @@
+using System.Collections.Concurrent;
+
 using Azure.Storage.Blobs;
+
 using App.Utils;
 
 namespace App.Factories
 {
     public class BlobContainerClientFactory
     {
-        private readonly Dictionary<string, BlobContainerClient> _clients;
+        private readonly ConcurrentDictionary<string, BlobContainerClient> _clients;
         private readonly AppConfig _config;
 
         public BlobContainerClientFactory(AppConfig config){
             _config = config;
-            _clients = new Dictionary<string, BlobContainerClient>
+            _clients = new ConcurrentDictionary<string, BlobContainerClient>();
+            
+            foreach (var containerName in _config.ContainerNames)
             {
-                {
-                    _config.BlobContainerName_Source,
-                    CreateBlobContainerClient(config.BlobContainerName_Source)
-                },
-                {
-                    _config.BlobContainerName_Target,
-                    CreateBlobContainerClient(config.BlobContainerName_Target)
-                },
-                {
-                    _config.BlobContainerName_Transcription,
-                    CreateBlobContainerClient(config.BlobContainerName_Transcription)
-                },
-                {
-                    _config.BlobContainerName_Processing,
-                    CreateBlobContainerClient(config.BlobContainerName_Processing)
-                }
-            };
+                _clients[containerName] = CreateBlobContainerClient(containerName);
+            }
         }
 
         public BlobContainerClient GetClient(string containerName){

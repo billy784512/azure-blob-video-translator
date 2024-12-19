@@ -9,7 +9,7 @@ public abstract class BaseVideoProcessingStrategy
     public BaseVideoProcessingStrategy(IServiceProvider serviceProvider){
         _serviceProvider = serviceProvider;
     }
-    public abstract Task ProcessAsync(string blobName, string sourceLang, string targetLang, ILogger logger);
+    public abstract Task ProcessAsync(string blobName, string sourceLang, string targetLang);
 
     public async Task<string[]> TranslateInParallel(string sourceLang, string targetLang, List<Tuple<string, string>> tempOutput, ILogger logger)
     {
@@ -40,7 +40,7 @@ public abstract class BaseVideoProcessingStrategy
                 semaphore.Release();
             }
         });
-
+        
         return await Task.WhenAll(translationTasks);
     }
 }
